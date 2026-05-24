@@ -1,7 +1,7 @@
 # ifood-case
 Repositório contêm pipeline de dados e análises referentes ao case
 
-# NYC Yellow Taxi Pipeline
+# NYC yellow taxi pipeline
 
 Pipeline de dados para análise de viagens de táxi amarelo de NYC (Janeiro-Maio 2023) usando Databricks Lakeflow Spark Declarative Pipelines (Similar em estrutura a um projeto DBT).
 
@@ -24,7 +24,7 @@ Pipeline de dados para análise de viagens de táxi amarelo de NYC (Janeiro-Maio
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 Visão geral
 
 Este pipeline processa dados históricos de viagens de táxi amarelo de NYC através de uma arquitetura medalhão (Bronze → Silver → Gold), carregando e transformando dados de janeiro a maio de 2023.
 
@@ -48,7 +48,7 @@ Camada ***landing***
 
 ---
 
-## Padrão Medalhão
+## Arquitetura medalhão
 
 ```
 📂 Camada landing (Parquet Files)
@@ -60,7 +60,7 @@ Camada ***landing***
 🥇 Gold Layer (10 registros + 2 views)
 ```
 
-### Estrutura de Catálogo
+### Estrutura do catálogo
 
  Camada | Catálogo | Schema
 --------|----------|--------
@@ -70,7 +70,7 @@ Camada ***landing***
 
 ---
 
-## 📊 Fonte de Dados
+## 📊 Fonte de dados
 
 ### Arquivos
  Arquivo | Registros | Período |
@@ -82,7 +82,7 @@ Camada ***landing***
  `yellow_tripdata_2023-05.parquet` | 3.506.635 | Maio 2023 |
  **TOTAL** | **16.186.386** | **Jan-Mai 2023** |
 
-### ⚠️ Inconsistências de Schema Descobertas
+### ⚠️ Inconsistências de schema descobertas
 
 ### Durante a análise dos arquivos, foram vistos alguns pontos que tiveram que ser tratados como:
 - colunas nulas
@@ -90,10 +90,9 @@ Camada ***landing***
 
 ![Teste](resources/evidence_001.png)
 
-esses dados foram excluídos dos resultas, visto que lógicas de negócio utilizavam o ***VendoId*** e outros campos nas métricas e sendo assim, não faziam sentido estarem nos dados disponibilizados na camada analítica
+esses dados foram excluídos dos resultados, visto que lógicas de negócio utilizavam o ***VendoId*** e outros campos nas métricas e sendo assim, não faziam sentido estarem nos dados disponibilizados na camada analítica
 
-
-Conflito de tipos nos dados
+- conflito de tipos nos dados (colunas possuiam tipos diferentes para o mesmo campo)
  Coluna | Janeiro | Fev-Mai | Problema |
 --------|---------|---------|----------|
  `VendorID` | `long` | `int` | Conflito de tipo |
@@ -103,16 +102,18 @@ Conflito de tipos nos dados
  `DOLocationID` | `long` | `int` | Conflito de tipo |
  `Airport_fee` | `double` | `long` | Conflito de tipo |
 
+- normalização de nomes de campos para lowercase, visto que parquets tinham diferenças
+
 ---
 
-## Camadas do Pipeline
+## Camadas do pipeline
 
-### Bronze: Ingestão Bruta
+### Bronze: Ingestão bruta
 
 **Arquivo**: `transformations/bronze.py`  
 **Tabela final**: `workspace.bronze.bronze_yellow_taxi`  
 
-#### Estratégia de Implementação
+#### Implementação
 
 Leitura individual de cada arquivo com **conversão explícita de tipos ANTES** da normalização de nomes de colunas:
 
@@ -139,7 +140,7 @@ for file in files:
     dfs.append(df)
 ```
 
-#### Colunas de Metadados Adicionadas
+#### Colunas de metadados adicionadas
 - `ingestion_timestamp` - timestamp da ingestão
 - `source_file` - nome do arquivo de origem
 
@@ -155,7 +156,7 @@ for file in files:
 **Arquivo**: `transformations/silver.py`  
 **Tabela final**: `workspace.silver.silver_yellow_taxi`  
 
-#### Filtros de Qualidade Aplicados
+#### Filtros de qualidade aplicados
 
 1. ✅ `trip_distance > 0` - Distância de viagem válida
 2. ✅ `fare_amount > 0` - Valor da tarifa válido
@@ -164,7 +165,7 @@ for file in files:
 5. ✅ `pickup_year == 2023` - Remove datas anômalas (2001, 2008, 2022)
 6. ✅ `pickup_month BETWEEN 1 AND 5` - Apenas Jan-Mai
 
-#### Colunas Derivadas
+#### Colunas derivadas
 - `pickup_year` - Ano extraído de `tpep_pickup_datetime`
 - `pickup_month` - Mês extraído de `tpep_pickup_datetime`
 
@@ -172,7 +173,7 @@ for file in files:
 - ✅ **15.434.054 registros** (95,4% da camada bronze)
 - ✅ Melhoria significativa após correção do casting de tipos
 
-#### Propriedades da Tabela
+#### Propriedades da tabela
 ```python
 table_properties={
     "delta.enableChangeDataFeed": "true", # colocado para caso haja ingestão incremental, obter apenas a diferença
@@ -183,9 +184,9 @@ table_properties={
 
 ---
 
-### Gold: Agregações de Negócio
+### Gold: Métricas de negócio
 
-#### 1. Agregação de Viagens (`workspace.gold.gold_yellow_taxi`)
+#### 1. Agregação de viagens (`workspace.gold.gold_yellow_taxi`)
 
 **Arquivo**: `transformations/gold.py`  
 
@@ -202,7 +203,9 @@ table_properties={
 
 **Resultado**: 10 registros (2 vendors × 5 meses)
 
-#### 2. Receita Média Mensal (`workspace.gold.monthly_avg_revenue`)
+![Tabela física](resources/evidence_010.png)
+
+#### 2. Receita média mensal (`workspace.gold.monthly_avg_revenue`)
 
 **Arquivo**: `transformations/gold_may_hourly_avg_passengers.sql`  
 **Tipo**: SQL View
@@ -224,7 +227,7 @@ ORDER BY pickup_year, pickup_month;
 Resultando na visualização
 ![Teste](resources/evidence_006.png)
 
-#### 3. Passageiros por Hora em Maio (`workspace.gold.may_hourly_avg_passengers`)
+#### 3. Passageiros por hora em maio (`workspace.gold.may_hourly_avg_passengers`)
 
 **Arquivo**: `transformations/gold_monthly_avg_revenue.sql`  
 **Tipo**: SQL View
@@ -250,7 +253,7 @@ Resultando na visualização
 
 ## ⚙️ Configuração
 
-### Arquivos de Origem
+### Arquivos
 
 ```
 transformations/
@@ -263,12 +266,12 @@ transformations/
 
 ---
 
-## 🚀 Como Executar
+## 🚀 Como executar
 
 
 ### Executar o notebook disponível em ***src/explorations/landing_layer_and_setup.py*** que irá
 
-#### 1. Criar Schemas
+#### 1. Criar schemas
 
 ```python
 spark.sql("CREATE SCHEMA IF NOT EXISTS workspace.bronze")
@@ -280,7 +283,7 @@ spark.sql("CREATE SCHEMA IF NOT EXISTS workspace.gold")
 
 ![Landing zone](resources/evidence_003.png)
 
-#### 3. Executar Pipeline
+#### 3. Executar o pipeline
 
 **Via Interface**:
 - Importar o pipeline transformations na seção de "ETL pipelines" do Databricks
@@ -289,7 +292,7 @@ spark.sql("CREATE SCHEMA IF NOT EXISTS workspace.gold")
 - Clique no botão "Start" no editor de pipeline
 ![Start pipeline](resources/evidence_009.png)
 
-#### 3. Verificar Resultados
+#### 3. Verificar resultados
 
 ```python
 # Verificar Bronze
@@ -306,16 +309,16 @@ spark.table("workspace.gold.may_hourly_avg_passengers").display()
 
 ---
 
-## 🎯 Próximos Passos
+## 🎯 Próximos passos e melhorias
 
-### 1. Configurar Ingestão Incremental (Futuro)
+### 1. Configurar ingestão incremental (Futuro)
 
 Quando novos meses de dados chegarem:
 - Adicionar novos caminhos de arquivo ao `bronze.py`
 - Considerar migração para Auto Loader uma vez que schema esteja estável
 - Ou continuar abordagem batch se arquivos chegarem mensalmente
 
-### 2. Adicionar Mais Verificações de Qualidade
+### 2. Adicionar mais checks de qualidade
 
 Expectations potenciais para adicionar:
 ```python
@@ -325,13 +328,13 @@ Expectations potenciais para adicionar:
 @dp.expect("amount_logic", "total_amount >= fare_amount")  # Lógica de negócio
 ```
 
-### 3. Otimização de Performance
+### 3. Otimização de performance
 
 Performance atual é boa, mas para escala:
 - Considerar particionamento por `pickup_month` em silver/gold
 - Adicionar Z-ordering em colunas de filtro comuns
 
-### 4. Adicionar Mais Analytics na Camada Gold
+### 4. Adicionar mais métricas na camada gold (tabelas / views)
 
 Views potenciais:
 - Padrões de viagem por hora e dia da semana
@@ -339,7 +342,7 @@ Views potenciais:
 - Percentual médio de gorjeta por tipo de pagamento
 - Análise de horários de pico e precificação
 
-### 5. Monitoramento e Alertas
+### 5. Monitoramento e alertas
 
 - Configurar alertas de falha de execução do pipeline
 - Monitorar contagens de registros (esperar ~3M por mês)
@@ -348,7 +351,7 @@ Views potenciais:
 
 ---
 
-## 📁 Estrutura do Projeto
+## 📁 Estrutura do projeto
 
 ```
 NYC Fare pipeline/
@@ -361,7 +364,7 @@ NYC Fare pipeline/
 │   ├── gold_may_hourly_avg_passengers.sql      # Views analíticas SQL
 │   └── gold_monthly_avg_revenue.sql            # Views analíticas SQL
 │
-├── explorations/                      # Notebooks de análise ad-hoc
+└── explorations/                      # Notebooks de análise ad-hoc
     ├── landing_layer_and_setup.py     # Notebook com download de arquivos para landing e criação de schemas
     └── observations.py                # Notebook com as análises criadas e consultas
 ```
