@@ -86,7 +86,7 @@ Camada ***landing***
 
 ### Durante a análise dos arquivos, foram vistos alguns pontos que tiveram que ser tratados como:
 - colunas nulas
-- datas inconsistentes nos arquivos (os arquivos deveriam conter os dados de cada mês, mas continham também datas furturas como por exemplo o ano de 2024)
+- datas inconsistentes nos arquivos (os arquivos deveriam conter os dados de cada mês, mas continham também datas futuras como por exemplo o ano de 2024)
 
 ![Teste](resources/evidence_001.png)
 
@@ -287,9 +287,11 @@ spark.sql("CREATE SCHEMA IF NOT EXISTS workspace.gold")
 
 **Via Interface**:
 - Importar o pipeline transformations na seção de "ETL pipelines" do Databricks
+
 ![NYC Taxi pipeline](resources/evidence_008.png)
 
 - Clique no botão "Start" no editor de pipeline
+
 ![Start pipeline](resources/evidence_009.png)
 
 #### 3. Verificar resultados
